@@ -19,7 +19,7 @@ st.markdown(
     """
     <style>
     [data-testid="stSidebar"] {
-        background-color: #f8f9fa !important; /* off-white sidebar */
+        # background-color: #f8f9fa !important; /* off-white sidebar */
         box-shadow: none !important;
     }
 
