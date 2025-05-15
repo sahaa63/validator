@@ -131,7 +131,7 @@ if os.path.exists(image_path):
         encoded_img = base64.b64encode(img_file.read()).decode()
 
     st.sidebar.markdown(f"""
-        <div style="background-color: white; padding: 25px 15px; margin-top: 80px; border-radius: 10px; text-align: center;">
+        <div style="padding: 25px 15px; margin-top: 80px; border-radius: 10px; text-align: center;">
             <img src='data:image/png;base64,{encoded_img}' class='sidebar-logo'>
             <p class='contact-info'>📧 <a href='mailto:arkaprova@sigmoidanalytics.com'>Contact Us</a></p>
             <p class='contact-info'>🔗 <a href='https://github.com/sahaa63/validator-' target='_blank'>GitHub Repository</a></p>
@@ -139,7 +139,7 @@ if os.path.exists(image_path):
     """, unsafe_allow_html=True)
 else:
     st.sidebar.markdown("""
-        <div style="background-color: white; padding: 25px 15px; margin-top: 80px; border-radius: 10px; text-align: center;">
+        <div style="padding: 25px 15px; margin-top: 80px; border-radius: 10px; text-align: center;">
             <p class='contact-info'>📧 <a href='mailto:arkaprova@sigmoidanalytics.com'>Contact Us</a></p>
             <p class='contact-info'>🔗 <a href='https://github.com/sahaa63/validator-' target='_blank'>GitHub Repository</a></p>
         </div>
