@@ -125,7 +125,7 @@ selection = st.sidebar.radio(
 )
 
 # Sidebar logo and contact section with padding
-image_path = "Sigmoid_Logo.jpg"
+image_path = "Sigmoid_Logo.png"
 if os.path.exists(image_path):
     with open(image_path, "rb") as img_file:
         encoded_img = base64.b64encode(img_file.read()).decode()
