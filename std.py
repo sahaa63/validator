@@ -4,17 +4,60 @@ import os
 from io import BytesIO
 import base64  # For base64 image encoding
 
+# Function to encode image to base64 (currently unused in the main logic but kept from original)
 def get_base64_image(image_path):
+    """Reads an image file and returns its base64 encoded string."""
     try:
         with open(image_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
     except FileNotFoundError:
+        st.error(f"Image not found at {image_path}")
         return None
 
-def run():
-    # Removed st.set_page_config()
+def standardize_column_data(df1_orig, df2_orig, common_columns):
+    """
+    Standardizes the data types of common columns between two DataFrames.
+    Prioritizes numeric, then datetime, then string.
+    """
+    df1 = df1_orig.copy()
+    df2 = df2_orig.copy()
 
-    # Custom CSS for styling
+    for col in common_columns:
+        # Attempt to convert to numeric first
+        # Create temporary series to test numeric conversion without altering original until decision
+        temp_s1_numeric = pd.to_numeric(df1[col], errors='coerce')
+        temp_s2_numeric = pd.to_numeric(df2[col], errors='coerce')
+
+        # Condition for numeric:
+        # If BOTH columns can be meaningfully converted to numeric (i.e., not all values become NaN).
+        # This handles cases where columns are 'object' dtype but contain numbers, or are already numeric.
+        if not temp_s1_numeric.isnull().all() and not temp_s2_numeric.isnull().all():
+            df1[col] = temp_s1_numeric
+            df2[col] = temp_s2_numeric
+            # st.write(f"Column '{col}' standardized as NUMERIC.") # Optional: for debugging
+
+        # Else, if not treated as numeric, attempt datetime conversion.
+        # Condition for datetime:
+        # 1. EITHER original DataFrame column's dtype is already datetime OR
+        # 2. BOTH columns can be meaningfully converted to datetime (i.e., not all values become NaT).
+        elif (pd.api.types.is_datetime64_any_dtype(df1[col].dtype) or \
+              pd.api.types.is_datetime64_any_dtype(df2[col].dtype)) or \
+             (not pd.to_datetime(df1[col], errors='coerce').isnull().all() and \
+              not pd.to_datetime(df2[col], errors='coerce').isnull().all()):
+            df1[col] = pd.to_datetime(df1[col], errors='coerce').dt.date
+            df2[col] = pd.to_datetime(df2[col], errors='coerce').dt.date
+            # st.write(f"Column '{col}' standardized as DATE.") # Optional: for debugging
+            
+        # Else, default to string.
+        else:
+            df1[col] = df1[col].astype(str).str.strip()
+            df2[col] = df2[col].astype(str).str.strip()
+            # st.write(f"Column '{col}' standardized as STRING.") # Optional: for debugging
+            
+    return df1, df2
+
+def run():
+    # Custom CSS for styling (unchanged)
     st.markdown("""
         <style>
         .title {
@@ -82,7 +125,7 @@ def run():
         <ul>
             <li>Upload an Excel file.</li>
             <li>Ensure the file contains sheets named "excel" and "PBI".</li>
-            <li>Columns common to both sheets will be standardized (numeric, date, or string).</li>
+            <li>Columns common to both sheets will be standardized. The tool will attempt to convert to numeric, then date, then string type.</li>
             <li>Download the new Excel file with standardized data.</li>
         </ul>
         </div>
@@ -98,62 +141,70 @@ def run():
     if uploaded_file:
         st.markdown(f'<div class="file-list"><strong>Uploaded File:</strong> {uploaded_file.name}</div>', unsafe_allow_html=True)
 
-        with st.spinner("Standardizing your data..."):
+        with st.spinner("Standardizing your data... Please wait."):
             try:
+                # Read both sheets from the uploaded Excel file
                 xl = pd.ExcelFile(uploaded_file)
+                if 'excel' not in xl.sheet_names:
+                    raise ValueError("Sheet 'excel' not found in the uploaded file.")
+                if 'PBI' not in xl.sheet_names:
+                    raise ValueError("Sheet 'PBI' not found in the uploaded file.")
+                
                 df_excel = xl.parse('excel')
                 df_pbi = xl.parse('PBI')
 
+                # Identify common columns
                 common_columns = [col for col in df_excel.columns if col in df_pbi.columns]
 
-                def standardize_column_data(df1, df2, common_columns):
-                    for col in common_columns:
-                        if pd.api.types.is_numeric_dtype(df1[col]) and pd.api.types.is_numeric_dtype(df2[col]):
-                            df1[col] = pd.to_numeric(df1[col], errors='coerce')
-                            df2[col] = pd.to_numeric(df2[col], errors='coerce')
-                        elif pd.api.types.is_datetime64_any_dtype(df1[col]) or pd.api.types.is_datetime64_any_dtype(df2[col]):
-                            df1[col] = pd.to_datetime(df1[col], errors='coerce').dt.date
-                            df2[col] = pd.to_datetime(df2[col], errors='coerce').dt.date
-                        else:
-                            df1[col] = df1[col].astype(str).str.strip()
-                            df2[col] = df2[col].astype(str).str.strip()
-                    return df1, df2
+                if not common_columns:
+                    st.warning("No common columns found between 'excel' and 'PBI' sheets.")
+                else:
+                    st.markdown(f"**Common columns found:** ` {', '.join(common_columns)} `")
+                    
+                    # Standardize data in common columns
+                    df_excel_std, df_pbi_std = standardize_column_data(df_excel, df_pbi, common_columns)
 
-                df_excel_std, df_pbi_std = standardize_column_data(df_excel.copy(), df_pbi.copy(), common_columns)
+                    # Prepare the output Excel file
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        df_excel_std.to_excel(writer, sheet_name='excel_standardized', index=False)
+                        df_pbi_std.to_excel(writer, sheet_name='PBI_standardized', index=False)
+                        # Optionally, include original sheets if needed
+                        # df_excel.to_excel(writer, sheet_name='excel_original', index=False)
+                        # df_pbi.to_excel(writer, sheet_name='PBI_original', index=False)
+                    output.seek(0) # Reset buffer's position to the beginning
 
-                output = BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    df_excel_std.to_excel(writer, sheet_name='excel', index=False)
-                    df_pbi_std.to_excel(writer, sheet_name='PBI', index=False)
-                output.seek(0)
+                    # Define the output filename
+                    original_name = os.path.splitext(uploaded_file.name)[0]
+                    output_filename = f"{original_name}_standardized.xlsx"
 
-                original_name = os.path.splitext(uploaded_file.name)[0]
-                output_filename = f"{original_name}_std.xlsx"
+                    st.markdown(
+                        f'<div class="success-box">✅ Standardization complete. Download the standardized file below:</div>',
+                        unsafe_allow_html=True
+                    )
 
+                    # Provide download button
+                    st.download_button(
+                        label="📥 Download Standardized Excel",
+                        data=output,
+                        file_name=output_filename,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+
+            except ValueError as ve: # Specific error for missing sheets or other value issues
                 st.markdown(
-                    f'<div class="success-box">✅ Standardization complete. Download the standardized file below:</div>',
+                    f'<div class="error-box">⚠️ Processing error: {ve}</div>',
                     unsafe_allow_html=True
                 )
-
-                st.download_button(
-                    label="📥 Download Standardized Excel",
-                    data=output,
-                    file_name=output_filename,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-
-            except ValueError as e:
-                st.markdown(
-                    f'<div class="error-box">⚠️ Sheet error: {e}</div>',
-                    unsafe_allow_html=True
-                )
-            except Exception as e:
+            except Exception as e: # Catch-all for other unexpected errors
+                st.error(f"An unexpected error occurred: {e}")
                 st.markdown(
                     f'<div class="error-box">🚨 Unexpected error: {e}</div>',
                     unsafe_allow_html=True
                 )
 
     st.markdown("---")
-# For testing standalone
+
+# Entry point for running the Streamlit app
 if __name__ == "__main__":
     run()
