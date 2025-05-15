@@ -68,8 +68,7 @@ def run():
             margin-bottom: 20px;
         }
         .instructions {
-            background-color: #F0F8FF;
-            color: #333333;
+            background-color: rgb(128 128 128 / 10%);
             padding: 15px;
             border-radius: 10px;
             border-left: 5px solid #4682B4;

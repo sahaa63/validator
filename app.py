@@ -63,7 +63,7 @@ st.markdown(
     }
 
     .tool-list li {
-        background-color: #fff !important;
+        background-color: rgb(128 128 128 / 10%);
         border-left: 5px solid #007bff !important;
         padding: 15px !important;
         margin-bottom: 10px !important;
