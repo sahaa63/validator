@@ -217,7 +217,7 @@ def run():
     st.markdown("""
         <style>
         .title { font-size: 36px; color: #FF4B4B; text-align: center; font-weight: bold; margin-bottom: 20px; }
-        .instructions { background-color: #F0F8FF; color: #333333; padding: 15px; border-radius: 10px; border-left: 5px solid #4682B4; margin-bottom: 20px; }
+        .instructions { background-color: rgb(128 128 128 / 10%); padding: 15px; border-radius: 10px; border-left: 5px solid #4682B4; margin-bottom: 20px; }
         .file-list { background-color: #F5F5F5; color: #333333; padding: 10px; border-radius: 5px; margin-top: 10px; margin-bottom: 10px; }
         .stButton>button { background-color: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 5px; font-weight: bold; }
         .stButton>button:hover { background-color: #45A049; }
