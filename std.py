@@ -126,7 +126,7 @@ def run():
             <li>Upload an Excel file.</li>
             <li>Ensure the file contains sheets named "excel" and "PBI".</li>
             <li>Columns common to both sheets will be standardized. The tool will attempt to convert to numeric, then date, then string type.</li>
-            <li>Download the new Excel file with standardized data.</li>
+            <li>Download the new Excel file with standardized data. The sheet names will be preserved as "excel" and "PBI".</li>
         </ul>
         </div>
     """, unsafe_allow_html=True)
@@ -167,16 +167,14 @@ def run():
                     # Prepare the output Excel file
                     output = BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        df_excel_std.to_excel(writer, sheet_name='excel_standardized', index=False)
-                        df_pbi_std.to_excel(writer, sheet_name='PBI_standardized', index=False)
-                        # Optionally, include original sheets if needed
-                        # df_excel.to_excel(writer, sheet_name='excel_original', index=False)
-                        # df_pbi.to_excel(writer, sheet_name='PBI_original', index=False)
+                        # Save standardized dataframes with original sheet names
+                        df_excel_std.to_excel(writer, sheet_name='excel', index=False)
+                        df_pbi_std.to_excel(writer, sheet_name='PBI', index=False)
                     output.seek(0) # Reset buffer's position to the beginning
 
                     # Define the output filename
                     original_name = os.path.splitext(uploaded_file.name)[0]
-                    output_filename = f"{original_name}_standardized.xlsx"
+                    output_filename = f"{original_name}_standardized.xlsx" # Output filename still indicates it's standardized
 
                     st.markdown(
                         f'<div class="success-box">✅ Standardization complete. Download the standardized file below:</div>',
