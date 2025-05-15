@@ -42,14 +42,14 @@ st.markdown(
     .tagline {
         font-size: 22px !important;
         font-weight: bold !important;
-        color: #495057 !important;
+        color: #747f8b !important;
         text-align: center !important;
         margin-bottom: 20px !important;
     }
 
     .instruction {
         font-size: 16px !important;
-        color: #00008B !important;
+        color: #747f8b !important;
         font-weight: bold !important;
         margin-bottom: 10px !important;
         text-align: center !important;
