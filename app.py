@@ -121,7 +121,7 @@ st.markdown(
 st.sidebar.markdown("<p class='sidebar-title'>🛠️ Tools</p>", unsafe_allow_html=True)
 selection = st.sidebar.radio(
     label="Explore",
-    options=["🏠 Overview", "📐 Standardiser", "📊 Validation Report", "🧩 File Merger"]
+    options=["🏠 Overview", "📐 Standardiser", "📊 Validation Report Generator", "🧩 Excel File Merger"]
 )
 
 # Sidebar logo and contact section with padding
@@ -134,14 +134,14 @@ if os.path.exists(image_path):
         <div style="background-color: white; padding: 25px 15px; margin-top: 80px; border-radius: 10px; text-align: center;">
             <img src='data:image/png;base64,{encoded_img}' class='sidebar-logo'>
             <p class='contact-info'>📧 <a href='mailto:arkaprova@sigmoidanalytics.com'>Contact Us</a></p>
-            <p class='contact-info'>🔗 <a href='https://github.com/sahaa63/validation_report-_test' target='_blank'>GitHub Repository</a></p>
+            <p class='contact-info'>🔗 <a href='https://github.com/sahaa63/validator-' target='_blank'>GitHub Repository</a></p>
         </div>
     """, unsafe_allow_html=True)
 else:
     st.sidebar.markdown("""
         <div style="background-color: white; padding: 25px 15px; margin-top: 80px; border-radius: 10px; text-align: center;">
             <p class='contact-info'>📧 <a href='mailto:arkaprova@sigmoidanalytics.com'>Contact Us</a></p>
-            <p class='contact-info'>🔗 <a href='https://github.com/sahaa63/validation_report-_test' target='_blank'>GitHub Repository</a></p>
+            <p class='contact-info'>🔗 <a href='https://github.com/sahaa63/validator-' target='_blank'>GitHub Repository</a></p>
         </div>
     """, unsafe_allow_html=True)
 
@@ -161,8 +161,8 @@ if selection == "🏠 Overview":
 elif selection == "📐 Standardiser":
     std.run()
 
-elif selection == "📊 Validation Report":
+elif selection == "📊 Validation Report Generator":
     val.run()
 
-elif selection == "🧩 File Merger":
+elif selection == "🧩 Excel File Merger":
     mrg.run()
