@@ -56,7 +56,7 @@ def run():
         }
         .instructions {
             background-color: rgb(128 128 128 / 10%); /* Current background color */
-            color: #333333; 
+            #color: #333333; 
             padding: 15px;
             border-radius: 10px;
             border-left: 5px solid #4682B4;
