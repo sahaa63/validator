@@ -90,7 +90,7 @@ def combine_excel_files(file_list, low_threshold, mid_threshold):
 
     first_filename_parts = os.path.splitext(file_list[0].name)[0].split('_')
     base_name = first_filename_parts[0] if first_filename_parts else os.path.splitext(file_list[0].name)[0]
-    output_filename = f"{base_name}_MERGED_reports.xlsx"
+    output_filename = f"{base_name}_merged_validation_report.xlsx"
 
     output_buffer = io.BytesIO()
     output_wb = Workbook()
