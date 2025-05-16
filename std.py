@@ -3,7 +3,6 @@ import pandas as pd
 import os
 from io import BytesIO
 import base64  # For base64 image encoding
-import numpy as np # For data types if needed
 
 # Function to encode image to base64 (kept from original)
 def get_base64_image(image_path):
@@ -18,44 +17,43 @@ def get_base64_image(image_path):
 def standardize_column_data(df1_orig, df2_orig, common_columns):
     """
     Standardizes data types of common columns.
-    1. Attempts robust numeric conversion: fills blanks with 0, rounds to 0 decimals, converts to int.
-    2. Then, robustly attempts datetime conversion (stripping to date).
-    3. Defaults to string.
+    Attempts numeric conversion first.
+    Then, robustly attempts datetime conversion (stripping to date).
+    Defaults to string.
     """
     df1 = df1_orig.copy()
     df2 = df2_orig.copy()
 
     for col in common_columns:
-        # 1. Try Robust Numeric Conversion
-        temp_s1_numeric = pd.to_numeric(df1[col], errors='coerce')
-        temp_s2_numeric = pd.to_numeric(df2[col], errors='coerce')
-
-        # Condition for numeric: If BOTH columns can be meaningfully converted to numeric
-        if not temp_s1_numeric.isnull().all() and not temp_s2_numeric.isnull().all():
-            df1[col] = temp_s1_numeric.fillna(0).round(0).astype(int)
-            df2[col] = temp_s2_numeric.fillna(0).round(0).astype(int)
-            # st.write(f"Column '{col}' standardized as INTEGER after filling NaNs with 0 and rounding.") # Optional: for debugging
-        
+        # 1. Try Numeric Conversion (Original Logic)
+        if pd.api.types.is_numeric_dtype(df1[col]) and pd.api.types.is_numeric_dtype(df2[col]):
+            df1[col] = pd.to_numeric(df1[col], errors='coerce')
+            df2[col] = pd.to_numeric(df2[col], errors='coerce')
         else:
-            # 2. Try Datetime Conversion (Enhanced Logic from previous version)
+            # 2. Try Datetime Conversion (Enhanced Logic for this request)
+            # Attempt to parse/convert both series to datetime objects.
+            # dayfirst=True helps interpret ambiguous formats like DD/MM/YYYY correctly.
+            # infer_datetime_format=True can speed up parsing if formats are consistent.
             temp_dt1 = pd.to_datetime(df1[col], errors='coerce', dayfirst=True, infer_datetime_format=True)
             temp_dt2 = pd.to_datetime(df2[col], errors='coerce', dayfirst=True, infer_datetime_format=True)
 
+            # Check if original dtypes were already datetime
             is_original_dt1 = pd.api.types.is_datetime64_any_dtype(df1[col].dtype)
             is_original_dt2 = pd.api.types.is_datetime64_any_dtype(df2[col].dtype)
 
+            # Check if conversion resulted in non-null datetime objects for both
+            # (i.e., the column likely contained parsable date strings)
             can_be_converted_dt1 = not temp_dt1.isnull().all()
             can_be_converted_dt2 = not temp_dt2.isnull().all()
             
+            # Condition: If either was originally datetime OR if both could be meaningfully converted
             if (is_original_dt1 or is_original_dt2) or (can_be_converted_dt1 and can_be_converted_dt2):
-                df1[col] = temp_dt1.dt.date
-                df2[col] = temp_dt2.dt.date
-                # st.write(f"Column '{col}' standardized as DATE.") # Optional: for debugging
+                df1[col] = temp_dt1.dt.date # Extract only the date part
+                df2[col] = temp_dt2.dt.date # Extract only the date part
             else:
-                # 3. Default to String
+                # 3. Default to String (Original Logic)
                 df1[col] = df1[col].astype(str).str.strip()
                 df2[col] = df2[col].astype(str).str.strip()
-                # st.write(f"Column '{col}' standardized as STRING.") # Optional: for debugging
             
     return df1, df2
 
@@ -72,7 +70,7 @@ def run():
         }
         .instructions {
             background-color: rgb(128 128 128 / 10%); 
-            #color: #333333; 
+            color: #333333; 
             padding: 15px;
             border-radius: 10px;
             border-left: 5px solid #4682B4;
@@ -130,8 +128,8 @@ def run():
             <li>Ensure the file contains sheets named "excel" and "PBI".</li>
             <li>Columns common to both sheets will be standardized:
                 <ul>
-                    <li>Numeric columns will be converted to whole numbers (0 decimal places), and any blank values will be replaced with 0.</li>
-                    <li>Columns containing date-like information will be converted to dates (time component removed).</li>
+                    <li>Numeric columns will be converted to numbers.</li>
+                    <li>Columns containing date-like information (including date strings) will be converted to dates (time component removed).</li>
                     <li>Other columns will be treated as strings.</li>
                 </ul>
             </li>
