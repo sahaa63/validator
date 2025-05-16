@@ -4,7 +4,7 @@ import os
 from io import BytesIO
 import base64  # For base64 image encoding
 
-# Function to encode image to base64 (kept from original, though not actively used in main flow)
+# Function to encode image to base64 (kept from original)
 def get_base64_image(image_path):
     """Reads an image file and returns its base64 encoded string."""
     try:
@@ -14,37 +14,51 @@ def get_base64_image(image_path):
         st.error(f"Image not found at {image_path}")
         return None
 
-# Reverted to the original standardization logic
 def standardize_column_data(df1_orig, df2_orig, common_columns):
     """
-    Standardizes data types of common columns based on original logic.
-    Attempts conversion if dtypes suggest numeric or datetime, otherwise string.
-    This version matches the initial script's data handling.
+    Standardizes data types of common columns.
+    Attempts numeric conversion first.
+    Then, robustly attempts datetime conversion (stripping to date).
+    Defaults to string.
     """
-    # Work on copies to avoid modifying the original DataFrames passed to the function
     df1 = df1_orig.copy()
     df2 = df2_orig.copy()
 
     for col in common_columns:
-        # Check if both columns are already considered numeric by pandas
+        # 1. Try Numeric Conversion (Original Logic)
         if pd.api.types.is_numeric_dtype(df1[col]) and pd.api.types.is_numeric_dtype(df2[col]):
             df1[col] = pd.to_numeric(df1[col], errors='coerce')
             df2[col] = pd.to_numeric(df2[col], errors='coerce')
-        # Check if either column is already considered datetime by pandas
-        elif pd.api.types.is_datetime64_any_dtype(df1[col]) or pd.api.types.is_datetime64_any_dtype(df2[col]):
-            # Convert to datetime.date objects. Pandas to_excel handles these as dates.
-            # If Excel shows numbers, it's likely a cell formatting issue in Excel itself.
-            df1[col] = pd.to_datetime(df1[col], errors='coerce').dt.date
-            df2[col] = pd.to_datetime(df2[col], errors='coerce').dt.date
-        # Default to string if not clearly numeric or datetime
         else:
-            df1[col] = df1[col].astype(str).str.strip()
-            df2[col] = df2[col].astype(str).str.strip()
+            # 2. Try Datetime Conversion (Enhanced Logic for this request)
+            # Attempt to parse/convert both series to datetime objects.
+            # dayfirst=True helps interpret ambiguous formats like DD/MM/YYYY correctly.
+            # infer_datetime_format=True can speed up parsing if formats are consistent.
+            temp_dt1 = pd.to_datetime(df1[col], errors='coerce', dayfirst=True, infer_datetime_format=True)
+            temp_dt2 = pd.to_datetime(df2[col], errors='coerce', dayfirst=True, infer_datetime_format=True)
+
+            # Check if original dtypes were already datetime
+            is_original_dt1 = pd.api.types.is_datetime64_any_dtype(df1[col].dtype)
+            is_original_dt2 = pd.api.types.is_datetime64_any_dtype(df2[col].dtype)
+
+            # Check if conversion resulted in non-null datetime objects for both
+            # (i.e., the column likely contained parsable date strings)
+            can_be_converted_dt1 = not temp_dt1.isnull().all()
+            can_be_converted_dt2 = not temp_dt2.isnull().all()
+            
+            # Condition: If either was originally datetime OR if both could be meaningfully converted
+            if (is_original_dt1 or is_original_dt2) or (can_be_converted_dt1 and can_be_converted_dt2):
+                df1[col] = temp_dt1.dt.date # Extract only the date part
+                df2[col] = temp_dt2.dt.date # Extract only the date part
+            else:
+                # 3. Default to String (Original Logic)
+                df1[col] = df1[col].astype(str).str.strip()
+                df2[col] = df2[col].astype(str).str.strip()
             
     return df1, df2
 
 def run():
-    # Custom CSS for styling (current version with rgb background for instructions)
+    # Custom CSS for styling (current version)
     st.markdown("""
         <style>
         .title {
@@ -55,8 +69,8 @@ def run():
             margin-bottom: 20px;
         }
         .instructions {
-            background-color: rgb(128 128 128 / 10%); /* Current background color */
-            #color: #333333; 
+            background-color: rgb(128 128 128 / 10%); 
+            color: #333333; 
             padding: 15px;
             border-radius: 10px;
             border-left: 5px solid #4682B4;
@@ -112,7 +126,13 @@ def run():
         <ul>
             <li>Upload an Excel file.</li>
             <li>Ensure the file contains sheets named "excel" and "PBI".</li>
-            <li>Columns common to both sheets will be standardized based on their apparent type (numeric, date, or string).</li>
+            <li>Columns common to both sheets will be standardized:
+                <ul>
+                    <li>Numeric columns will be converted to numbers.</li>
+                    <li>Columns containing date-like information (including date strings) will be converted to dates (time component removed).</li>
+                    <li>Other columns will be treated as strings.</li>
+                </ul>
+            </li>
             <li>Download the new Excel file with standardized data. The sheet names in the output file will be preserved as "excel" and "PBI".</li>
         </ul>
         </div>
