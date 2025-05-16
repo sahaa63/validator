@@ -18,22 +18,27 @@ def standardize_column_data(df1_orig, df2_orig, common_columns):
     """
     Standardizes the data types of common columns between two DataFrames.
     Prioritizes numeric, then datetime, then string.
+    For numeric columns not containing '_ID', NaNs are filled with 0.
+    Dates are converted to datetime.date objects.
     """
     df1 = df1_orig.copy()
     df2 = df2_orig.copy()
 
     for col in common_columns:
         # Attempt to convert to numeric first
-        # Create temporary series to test numeric conversion without altering original until decision
         temp_s1_numeric = pd.to_numeric(df1[col], errors='coerce')
         temp_s2_numeric = pd.to_numeric(df2[col], errors='coerce')
 
         # Condition for numeric:
         # If BOTH columns can be meaningfully converted to numeric (i.e., not all values become NaN).
-        # This handles cases where columns are 'object' dtype but contain numbers, or are already numeric.
         if not temp_s1_numeric.isnull().all() and not temp_s2_numeric.isnull().all():
             df1[col] = temp_s1_numeric
             df2[col] = temp_s2_numeric
+            
+            # Fill NaNs with 0 for numeric columns not containing '_ID' (case-insensitive)
+            if "_ID" not in col.upper():
+                df1[col] = df1[col].fillna(0)
+                df2[col] = df2[col].fillna(0)
             # st.write(f"Column '{col}' standardized as NUMERIC.") # Optional: for debugging
 
         # Else, if not treated as numeric, attempt datetime conversion.
@@ -44,6 +49,8 @@ def standardize_column_data(df1_orig, df2_orig, common_columns):
               pd.api.types.is_datetime64_any_dtype(df2[col].dtype)) or \
              (not pd.to_datetime(df1[col], errors='coerce').isnull().all() and \
               not pd.to_datetime(df2[col], errors='coerce').isnull().all()):
+            
+            # Convert to datetime.date objects. Pandas to_excel handles these as dates.
             df1[col] = pd.to_datetime(df1[col], errors='coerce').dt.date
             df2[col] = pd.to_datetime(df2[col], errors='coerce').dt.date
             # st.write(f"Column '{col}' standardized as DATE.") # Optional: for debugging
@@ -57,7 +64,7 @@ def standardize_column_data(df1_orig, df2_orig, common_columns):
     return df1, df2
 
 def run():
-    # Custom CSS for styling (unchanged)
+    # Custom CSS for styling
     st.markdown("""
         <style>
         .title {
@@ -68,7 +75,8 @@ def run():
             margin-bottom: 20px;
         }
         .instructions {
-            background-color: rgb(128 128 128 / 10%);
+            background-color: rgb(128 128 128 / 10%); /* Updated background color */
+           #color: #333333; /* Kept original text color for contrast, can be adjusted if needed */
             padding: 15px;
             border-radius: 10px;
             border-left: 5px solid #4682B4;
@@ -76,7 +84,7 @@ def run():
         }
         .file-list {
             background-color: #F5F5F5;
-            color: #333333;
+            #color: #333333;
             padding: 10px;
             border-radius: 5px;
             margin-top: 10px;
@@ -124,8 +132,14 @@ def run():
         <ul>
             <li>Upload an Excel file.</li>
             <li>Ensure the file contains sheets named "excel" and "PBI".</li>
-            <li>Columns common to both sheets will be standardized. The tool will attempt to convert to numeric, then date, then string type.</li>
-            <li>Download the new Excel file with standardized data. The sheet names will be preserved as "excel" and "PBI".</li>
+            <li>Columns common to both sheets will be standardized:
+                <ul>
+                    <li>Numeric columns (not containing "_ID" in their name) will have blanks filled with 0.</li>
+                    <li>Date-like columns will be converted to dates (time component removed).</li>
+                    <li>Other columns will be treated as strings.</li>
+                </ul>
+            </li>
+            <li>Download the new Excel file with standardized data. The sheet names in the output file will be preserved as "excel" and "PBI".</li>
         </ul>
         </div>
     """, unsafe_allow_html=True)
@@ -173,7 +187,8 @@ def run():
 
                     # Define the output filename
                     original_name = os.path.splitext(uploaded_file.name)[0]
-                    output_filename = f"{original_name}_standardized.xlsx" # Output filename still indicates it's standardized
+                    # Output filename still indicates it's standardized, but internal sheet names are original
+                    output_filename = f"{original_name}_standardized.xlsx" 
 
                     st.markdown(
                         f'<div class="success-box">✅ Standardization complete. Download the standardized file below:</div>',
