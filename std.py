@@ -4,7 +4,7 @@ import os
 from io import BytesIO
 import base64  # For base64 image encoding
 
-# Function to encode image to base64 (currently unused in the main logic but kept from original)
+# Function to encode image to base64 (kept from original, though not actively used in main flow)
 def get_base64_image(image_path):
     """Reads an image file and returns its base64 encoded string."""
     try:
@@ -14,57 +14,37 @@ def get_base64_image(image_path):
         st.error(f"Image not found at {image_path}")
         return None
 
+# Reverted to the original standardization logic
 def standardize_column_data(df1_orig, df2_orig, common_columns):
     """
-    Standardizes the data types of common columns between two DataFrames.
-    Prioritizes numeric, then datetime, then string.
-    For numeric columns not containing '_ID', NaNs are filled with 0.
-    Dates are converted to datetime.date objects.
+    Standardizes data types of common columns based on original logic.
+    Attempts conversion if dtypes suggest numeric or datetime, otherwise string.
+    This version matches the initial script's data handling.
     """
+    # Work on copies to avoid modifying the original DataFrames passed to the function
     df1 = df1_orig.copy()
     df2 = df2_orig.copy()
 
     for col in common_columns:
-        # Attempt to convert to numeric first
-        temp_s1_numeric = pd.to_numeric(df1[col], errors='coerce')
-        temp_s2_numeric = pd.to_numeric(df2[col], errors='coerce')
-
-        # Condition for numeric:
-        # If BOTH columns can be meaningfully converted to numeric (i.e., not all values become NaN).
-        if not temp_s1_numeric.isnull().all() and not temp_s2_numeric.isnull().all():
-            df1[col] = temp_s1_numeric
-            df2[col] = temp_s2_numeric
-            
-            # Fill NaNs with 0 for numeric columns not containing '_ID' (case-insensitive)
-            if "_ID" not in col.upper():
-                df1[col] = df1[col].fillna(0)
-                df2[col] = df2[col].fillna(0)
-            # st.write(f"Column '{col}' standardized as NUMERIC.") # Optional: for debugging
-
-        # Else, if not treated as numeric, attempt datetime conversion.
-        # Condition for datetime:
-        # 1. EITHER original DataFrame column's dtype is already datetime OR
-        # 2. BOTH columns can be meaningfully converted to datetime (i.e., not all values become NaT).
-        elif (pd.api.types.is_datetime64_any_dtype(df1[col].dtype) or \
-              pd.api.types.is_datetime64_any_dtype(df2[col].dtype)) or \
-             (not pd.to_datetime(df1[col], errors='coerce').isnull().all() and \
-              not pd.to_datetime(df2[col], errors='coerce').isnull().all()):
-            
+        # Check if both columns are already considered numeric by pandas
+        if pd.api.types.is_numeric_dtype(df1[col]) and pd.api.types.is_numeric_dtype(df2[col]):
+            df1[col] = pd.to_numeric(df1[col], errors='coerce')
+            df2[col] = pd.to_numeric(df2[col], errors='coerce')
+        # Check if either column is already considered datetime by pandas
+        elif pd.api.types.is_datetime64_any_dtype(df1[col]) or pd.api.types.is_datetime64_any_dtype(df2[col]):
             # Convert to datetime.date objects. Pandas to_excel handles these as dates.
+            # If Excel shows numbers, it's likely a cell formatting issue in Excel itself.
             df1[col] = pd.to_datetime(df1[col], errors='coerce').dt.date
             df2[col] = pd.to_datetime(df2[col], errors='coerce').dt.date
-            # st.write(f"Column '{col}' standardized as DATE.") # Optional: for debugging
-            
-        # Else, default to string.
+        # Default to string if not clearly numeric or datetime
         else:
             df1[col] = df1[col].astype(str).str.strip()
             df2[col] = df2[col].astype(str).str.strip()
-            # st.write(f"Column '{col}' standardized as STRING.") # Optional: for debugging
             
     return df1, df2
 
 def run():
-    # Custom CSS for styling
+    # Custom CSS for styling (current version with rgb background for instructions)
     st.markdown("""
         <style>
         .title {
@@ -75,8 +55,8 @@ def run():
             margin-bottom: 20px;
         }
         .instructions {
-            background-color: rgb(128 128 128 / 10%); /* Updated background color */
-           #color: #333333; /* Kept original text color for contrast, can be adjusted if needed */
+            background-color: rgb(128 128 128 / 10%); /* Current background color */
+            color: #333333; 
             padding: 15px;
             border-radius: 10px;
             border-left: 5px solid #4682B4;
@@ -84,7 +64,7 @@ def run():
         }
         .file-list {
             background-color: #F5F5F5;
-            #color: #333333;
+            color: #333333;
             padding: 10px;
             border-radius: 5px;
             margin-top: 10px;
@@ -132,13 +112,7 @@ def run():
         <ul>
             <li>Upload an Excel file.</li>
             <li>Ensure the file contains sheets named "excel" and "PBI".</li>
-            <li>Columns common to both sheets will be standardized:
-                <ul>
-                    <li>Numeric columns (not containing "_ID" in their name) will have blanks filled with 0.</li>
-                    <li>Date-like columns will be converted to dates (time component removed).</li>
-                    <li>Other columns will be treated as strings.</li>
-                </ul>
-            </li>
+            <li>Columns common to both sheets will be standardized based on their apparent type (numeric, date, or string).</li>
             <li>Download the new Excel file with standardized data. The sheet names in the output file will be preserved as "excel" and "PBI".</li>
         </ul>
         </div>
@@ -163,19 +137,19 @@ def run():
                 if 'PBI' not in xl.sheet_names:
                     raise ValueError("Sheet 'PBI' not found in the uploaded file.")
                 
-                df_excel = xl.parse('excel')
-                df_pbi = xl.parse('PBI')
+                df_excel_orig = xl.parse('excel')
+                df_pbi_orig = xl.parse('PBI')
 
                 # Identify common columns
-                common_columns = [col for col in df_excel.columns if col in df_pbi.columns]
+                common_columns = [col for col in df_excel_orig.columns if col in df_pbi_orig.columns]
 
                 if not common_columns:
                     st.warning("No common columns found between 'excel' and 'PBI' sheets.")
                 else:
                     st.markdown(f"**Common columns found:** ` {', '.join(common_columns)} `")
                     
-                    # Standardize data in common columns
-                    df_excel_std, df_pbi_std = standardize_column_data(df_excel, df_pbi, common_columns)
+                    # Standardize data in common columns using copies
+                    df_excel_std, df_pbi_std = standardize_column_data(df_excel_orig, df_pbi_orig, common_columns)
 
                     # Prepare the output Excel file
                     output = BytesIO()
@@ -187,7 +161,6 @@ def run():
 
                     # Define the output filename
                     original_name = os.path.splitext(uploaded_file.name)[0]
-                    # Output filename still indicates it's standardized, but internal sheet names are original
                     output_filename = f"{original_name}_standardized.xlsx" 
 
                     st.markdown(
