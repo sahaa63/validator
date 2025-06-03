@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from io import BytesIO
-import base64  # For base64 image encoding
+import base64
 
 # Function to encode image to base64 (kept from original)
 def get_base64_image(image_path):
@@ -16,46 +16,68 @@ def get_base64_image(image_path):
 
 def standardize_column_data(df1_orig, df2_orig, common_columns):
     """
-    Standardizes data types of common columns.
-    Attempts numeric conversion first.
-    Then, robustly attempts datetime conversion (stripping to date).
-    Defaults to string.
+    Standardizes data types of common columns with a clear priority:
+    1. Percentage strings (e.g., "69.36%") are converted to decimals (0.6936).
+    2. Numeric-convertible columns (including integers and decimals) are converted to numbers.
+    3. Date-like columns (including various string formats) are converted to dates.
+    4. All other columns default to stripped strings.
     """
     df1 = df1_orig.copy()
     df2 = df2_orig.copy()
 
     for col in common_columns:
-        # 1. Try Numeric Conversion (Original Logic)
-        if pd.api.types.is_numeric_dtype(df1[col]) and pd.api.types.is_numeric_dtype(df2[col]):
-            df1[col] = pd.to_numeric(df1[col], errors='coerce')
-            df2[col] = pd.to_numeric(df2[col], errors='coerce')
-        else:
-            # 2. Try Datetime Conversion (Enhanced Logic for this request)
-            # Attempt to parse/convert both series to datetime objects.
-            # dayfirst=True helps interpret ambiguous formats like DD/MM/YYYY correctly.
-            # infer_datetime_format=True can speed up parsing if formats are consistent.
-            temp_dt1 = pd.to_datetime(df1[col], errors='coerce', dayfirst=True, infer_datetime_format=True)
-            temp_dt2 = pd.to_datetime(df2[col], errors='coerce', dayfirst=True, infer_datetime_format=True)
+        # Ensure the column exists in both dataframes before proceeding
+        if col not in df1.columns or col not in df2.columns:
+            continue
 
-            # Check if original dtypes were already datetime
+        # --- 1. Handle Percentage Columns ---
+        # Check if the column is object type and contains '%' character
+        is_percent_col1 = pd.api.types.is_object_dtype(df1[col]) and df1[col].str.contains('%', na=False).any()
+        is_percent_col2 = pd.api.types.is_object_dtype(df2[col]) and df2[col].str.contains('%', na=False).any()
+
+        if is_percent_col1 or is_percent_col2:
+            df1[col] = pd.to_numeric(df1[col].astype(str).str.rstrip('%'), errors='coerce') / 100.0
+            df2[col] = pd.to_numeric(df2[col].astype(str).str.rstrip('%'), errors='coerce') / 100.0
+            continue # Move to the next column
+
+        # --- 2. Handle Numeric Columns (Integers and Decimals) ---
+        # Attempt to convert to numeric. This will handle integers, floats, and numeric strings.
+        temp_num1 = pd.to_numeric(df1[col], errors='coerce')
+        temp_num2 = pd.to_numeric(df2[col], errors='coerce')
+
+        # If conversion is successful for both (i.e., not all values became NaN)
+        if not temp_num1.isnull().all() and not temp_num2.isnull().all():
+            df1[col] = temp_num1
+            df2[col] = temp_num2
+            continue # Move to the next column
+            
+        # --- 3. Handle Datetime Columns ---
+        # This block is only reached if the column could not be treated as numeric.
+        try:
+            temp_dt1 = pd.to_datetime(df1[col], errors='coerce', dayfirst=True)
+            temp_dt2 = pd.to_datetime(df2[col], errors='coerce', dayfirst=True)
+
             is_original_dt1 = pd.api.types.is_datetime64_any_dtype(df1[col].dtype)
             is_original_dt2 = pd.api.types.is_datetime64_any_dtype(df2[col].dtype)
-
-            # Check if conversion resulted in non-null datetime objects for both
-            # (i.e., the column likely contained parsable date strings)
+            
             can_be_converted_dt1 = not temp_dt1.isnull().all()
             can_be_converted_dt2 = not temp_dt2.isnull().all()
-            
-            # Condition: If either was originally datetime OR if both could be meaningfully converted
+
             if (is_original_dt1 or is_original_dt2) or (can_be_converted_dt1 and can_be_converted_dt2):
-                df1[col] = temp_dt1.dt.date # Extract only the date part
-                df2[col] = temp_dt2.dt.date # Extract only the date part
-            else:
-                # 3. Default to String (Original Logic)
-                df1[col] = df1[col].astype(str).str.strip()
-                df2[col] = df2[col].astype(str).str.strip()
-            
+                df1[col] = temp_dt1.dt.date
+                df2[col] = temp_dt2.dt.date
+                continue # Move to the next column
+        except Exception:
+            # If to_datetime raises an unexpected error, fall through to string conversion
+            pass
+
+        # --- 4. Default to String ---
+        # If none of the above conditions were met, treat as string.
+        df1[col] = df1[col].astype(str).str.strip()
+        df2[col] = df2[col].astype(str).str.strip()
+
     return df1, df2
+
 
 def run():
     # Custom CSS for styling (current version)
@@ -70,7 +92,6 @@ def run():
         }
         .instructions {
             background-color: rgb(128 128 128 / 10%); 
-           # color: #333333; 
             padding: 15px;
             border-radius: 10px;
             border-left: 5px solid #4682B4;
@@ -126,14 +147,15 @@ def run():
         <ul>
             <li>Upload an Excel file.</li>
             <li>Ensure the file contains sheets named "excel" and "PBI".</li>
-            <li>Columns common to both sheets will be standardized:
+            <li>Common columns will be standardized with the following priority:
                 <ul>
-                    <li>Numeric columns will be converted to numbers.</li>
-                    <li>Columns containing date-like information (including date strings) will be converted to dates (time component removed).</li>
-                    <li>Other columns will be treated as strings.</li>
+                    <li>Percentage strings (e.g., "55.5%") converted to decimals (0.555).</li>
+                    <li>Integer and decimal columns preserved as numbers.</li>
+                    <li>Date-like columns converted to dates (time part removed).</li>
+                    <li>Other columns treated as strings.</li>
                 </ul>
             </li>
-            <li>Download the new Excel file with standardized data. The sheet names in the output file will be preserved as "excel" and "PBI".</li>
+            <li>Download the new Excel file with standardized data.</li>
         </ul>
         </div>
     """, unsafe_allow_html=True)
@@ -202,7 +224,6 @@ def run():
                     unsafe_allow_html=True
                 )
             except Exception as e: # Catch-all for other unexpected errors
-                st.error(f"An unexpected error occurred: {e}")
                 st.markdown(
                     f'<div class="error-box">🚨 Unexpected error: {e}</div>',
                     unsafe_allow_html=True
