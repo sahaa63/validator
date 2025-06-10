@@ -271,7 +271,7 @@ def run():
 
     st.markdown('<div class="title">Excel File Merger (with Validation Summary)</div>', unsafe_allow_html=True)
     st.sidebar.header("⚙️ Diff Color Thresholds")
-    low_threshold = st.sidebar.number_input("Green Threshold (≤)", min_value=0.0, max_value=1.0, value=0.1, step=0.01, key="mrg_low_threshold_sidebar")
+    low_threshold = st.sidebar.number_input("Green Threshold (≤)", min_value=0.0, max_value=1.0, value=0.05, step=0.01, key="mrg_low_threshold_sidebar")
     mid_threshold = st.sidebar.number_input("Amber Threshold (≤)", min_value=0.0, max_value=1.0, value=0.5, step=0.01, key="mrg_mid_threshold_sidebar")
 
     st.markdown("""
