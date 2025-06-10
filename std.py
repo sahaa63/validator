@@ -21,16 +21,15 @@ def standardize_column_data(df1_orig, df2_orig, common_columns):
     - Pre-processes each cell:
         - Strings that are valid percentages (e.g., "75.5%") are converted to decimals.
         - Text containing '%' but is not a valid percentage (e.g. "5% discount") is ignored.
-    - Then, attempts column-wide conversion with updated logic:
-        1. A column is converted to numeric ONLY IF all non-null values are numeric.
-           If even one text value exists, the column is treated as a string.
+    - Then, attempts column-wide conversion:
+        1. Numeric-convertible columns are converted to a numeric type.
         2. Date-like columns are converted to dates.
         3. All other columns default to stripped strings.
     """
     df1 = df1_orig.copy()
     df2 = df2_orig.copy()
 
-    # A precise helper function using a regular expression to find percentages.
+    # A more precise helper function using a regular expression.
     def convert_value(val):
         """
         Converts a value only if it's a string that strictly matches a percentage format.
@@ -41,6 +40,8 @@ def standardize_column_data(df1_orig, df2_orig, common_columns):
 
         # Regex to match a string that IS a percentage and nothing else.
         # ^ and $ anchor the match to the start and end of the string.
+        # Allows for optional whitespace (\s*), an optional negative sign (-?),
+        # and numbers with or without a decimal part (\d+\.?\d*).
         percentage_pattern = re.compile(r"^\s*(-?\d+\.?\d*)\s*%\s*$")
 
         # We use .match() on the stripped string. If it's a match...
@@ -56,60 +57,41 @@ def standardize_column_data(df1_orig, df2_orig, common_columns):
             continue
 
         # --- Pre-processing Step: Apply cell-wise conversion for percentages ---
-        # This step is applied first to handle explicit percentage strings.
         df1[col] = df1[col].apply(convert_value)
         df2[col] = df2[col].apply(convert_value)
 
-        # --- Main Conversion Logic ---
+        # --- Main Conversion Logic (now operates on the precisely-processed data) ---
 
-        # 1. Handle Numeric Columns (Stricter Check)
-        # We will only convert to numeric if ALL non-null values are numeric.
+        # 1. Handle Numeric Columns
+        temp_num1 = pd.to_numeric(df1[col], errors='coerce')
+        temp_num2 = pd.to_numeric(df2[col], errors='coerce')
+
+        if not temp_num1.isnull().all() and not temp_num2.isnull().all():
+            df1[col] = temp_num1
+            df2[col] = temp_num2
+            continue
+
+        # 2. Handle Datetime Columns
         try:
-            # Attempt to convert to numeric, coercing errors to NaT/NaN
-            temp_num1 = pd.to_numeric(df1[col], errors='coerce')
-            temp_num2 = pd.to_numeric(df2[col], errors='coerce')
-
-            # The key check: Did 'to_numeric' create new nulls?
-            # If the number of nulls increased, it means some values were non-numeric text.
-            is_fully_numeric1 = df1[col].isnull().sum() == temp_num1.isnull().sum()
-            is_fully_numeric2 = df2[col].isnull().sum() == temp_num2.isnull().sum()
-
-            # Only if BOTH columns are purely numeric, we perform the conversion.
-            if is_fully_numeric1 and is_fully_numeric2:
-                df1[col] = temp_num1
-                df2[col] = temp_num2
-                continue # Move to the next column
-        except Exception:
-            # If any error occurs during numeric check, we'll fall back to string.
-            pass
-
-
-        # 2. Handle Datetime Columns (Logic remains unchanged as requested)
-        try:
-            # Coerce to datetime, setting invalid parsing as NaT
             temp_dt1 = pd.to_datetime(df1[col], errors='coerce', dayfirst=True)
             temp_dt2 = pd.to_datetime(df2[col], errors='coerce', dayfirst=True)
 
             is_original_dt1 = pd.api.types.is_datetime64_any_dtype(df1[col].dtype)
             is_original_dt2 = pd.api.types.is_datetime64_any_dtype(df2[col].dtype)
             
-            # Check if columns can be fully converted without losing all data
             can_be_converted_dt1 = not temp_dt1.isnull().all()
             can_be_converted_dt2 = not temp_dt2.isnull().all()
 
-            # If either was already a datetime, or both can be successfully converted
             if (is_original_dt1 or is_original_dt2) or (can_be_converted_dt1 and can_be_converted_dt2):
                 df1[col] = temp_dt1.dt.date
                 df2[col] = temp_dt2.dt.date
-                continue # Move to the next column
+                continue
         except Exception:
-            # If date conversion fails, pass and fall through to string conversion
             pass
 
         # 3. Default to String
-        # This is the fallback for columns that are not purely numeric or date-like.
-        df1[col] = df1[col].astype(str).str.strip().replace('nan', '')
-        df2[col] = df2[col].astype(str).str.strip().replace('nan', '')
+        df1[col] = df1[col].astype(str).str.strip()
+        df2[col] = df2[col].astype(str).str.strip()
 
     return df1, df2
 
@@ -184,10 +166,10 @@ def run():
             <li>Ensure the file contains sheets named "excel" and "PBI".</li>
             <li>Common columns will be standardized with the following priority:
                 <ul>
-                    <li>Percentage strings (e.g., "55.5%") converted to decimals.</li>
-                    <li>Columns with ONLY numbers will be treated as numeric.</li>
+                    <li>Percentage strings (e.g., "55.5%") converted to decimals. Text with a '%' is preserved.</li>
+                    <li>Integer and decimal columns preserved as numbers.</li>
                     <li>Date-like columns converted to dates (time part removed).</li>
-                    <li><b>Columns with any text (mixed with numbers) will be preserved as text.</b></li>
+                    <li>Other columns treated as strings.</li>
                 </ul>
             </li>
             <li>Download the new Excel file with standardized data.</li>
